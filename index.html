@@ -401,16 +401,15 @@
     }
 
     main .input-group {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 1rem;
       margin-top: 1rem;
       justify-content: center;
-      flex-wrap: wrap;
     }
 
     main select {
-      flex: 1;
-      max-width: 250px;
+      width: 100%;
       padding: 0.6rem;
       background: transparent;
       color: var(--white);
@@ -518,8 +517,8 @@
       .logo-ascii .text-main { font-size: 0.7rem; }
       .logo-ascii .text-sub { font-size: 0.55rem; }
       main { margin: 0.5rem; padding: 1rem; }
-      main .input-group { flex-direction: column; }
-      main select { max-width: 100%; }
+      main .input-group { grid-template-columns: 1fr; }
+      main select { width: 100%; }
       .subtitle { font-size: 0.85rem; }
       .theme-toggle, .logout-button, .admin-button, .audio-toggle {
         font-size: 1rem;
@@ -551,7 +550,7 @@
   </div>
   <div id="broadcast" class="hidden">
     <h1 class="glitch" data-text="Caterpillar Tuning Protocol Initialized">Caterpillar Tuning Protocol Initialized</h1>
-    <p>Welcome, Tuners... Please Select Engine Type and Model</p>
+    <p>Welcome, Tuners... Please Select Engine Type, Model, and Tuning Options</p>
   </div>
   <div id="login" class="hidden">
     <h1 class="glitch" data-text="DieselLynks Login">DieselLynks Login</h1>
@@ -605,16 +604,28 @@
         <option value="C7">C7</option>
         <option value="C9">C9</option>
         <option value="C10">C10</option>
+        <option value="C12">C12</option>
         <option value="C13">C13</option>
         <option value="C15">C15</option>
         <option value="C16">C16</option>
+        <option value="C18">C18</option>
       </select>
       <select id="engineModel" aria-label="Engine Model" disabled>
         <option value="" disabled selected>Select Engine Model</option>
       </select>
-      <button onclick="submitCode()" aria-label="Submit Engine Type and Model">Submit</button>
+      <select id="mod" aria-label="Modifications">
+        <option value="" disabled selected>Mod: Yes/No</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+      <select id="hpIncrease" aria-label="HP Increase">
+        <option value="" disabled selected>HP Increase: Yes/No</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+      <button onclick="submitCode()" aria-label="Submit Engine Type, Model, and Tuning Options">Submit</button>
     </div>
-    <p class="status" id="status">Awaiting Engine Type and Model Selection...</p>
+    <p class="status" id="status">Awaiting Engine Type, Model, and Tuning Options...</p>
     <div class="progress-container">
       <div class="progress-bar" id="progressBar"></div>
     </div>
@@ -631,13 +642,15 @@
   <script>
     // Engine Model Mapping
     const engineModels = {
-      '3406': ['E', 'B', 'C'],
-      'C7': ['WAX', 'SAP', 'KAL'],
-      'C9': ['ETK', '9DG', 'CKP'],
-      'C10': ['3CS', '2PN', '1YN'],
-      'C13': ['LEE', 'KCB', 'JAM'],
-      'C15': ['BXS', 'MXS', 'NXS', 'SDP'],
-      'C16': ['7CZ', '2WS']
+      '3406': ['E', 'B', 'C', 'PEEC'],
+      'C7': ['WAX', 'SAP', 'KAL', 'YPG', 'C7S'],
+      'C9': ['ETK', '9DG', 'CKP', 'LFE', 'C9S'],
+      'C10': ['3CS', '2PN', '1YN', '8YS'],
+      'C12': ['2KS', '9NS', 'CPD', 'MBL', '8YF'],
+      'C13': ['LEE', 'KCB', 'JAM', 'B5R', 'LGK'],
+      'C15': ['BXS', 'MXS', 'NXS', 'SDP', '6NZ', '7CZ', 'EGH', 'JEP', 'MBJ'],
+      'C16': ['7CZ', '2WS', 'W1A'],
+      'C18': ['CJP', 'MEP', 'WJH']
     };
 
     function updateModelOptions() {
@@ -965,13 +978,15 @@
       playSound(clickSound);
       const engineType = document.getElementById('engineType').value;
       const engineModel = document.getElementById('engineModel').value;
+      const mod = document.getElementById('mod').value;
+      const hpIncreaseOnly = document.getElementById('hpIncreaseOnly').value;
       const status = document.getElementById('status');
       const progressBar = document.getElementById('progressBar');
       const downloadButton = document.getElementById('downloadButton');
       const resetButton = document.getElementById('resetButton');
 
-      if (!engineType || !engineModel) {
-        status.textContent = 'Error: Please select Engine Type and Model';
+      if (!engineType || !engineModel || !mod || !hpIncreaseOnly) {
+        status.textContent = 'Error: Please select all options (Engine Type, Model, Mod, HP Increase)';
         progressBar.style.width = '0%';
         return;
       }
@@ -979,6 +994,8 @@
       // Disable inputs and submit button during processing
       document.getElementById('engineType').disabled = true;
       document.getElementById('engineModel').disabled = true;
+      document.getElementById('mod').disabled = true;
+      document.getElementById('hpIncreaseOnly').disabled = true;
       document.querySelector('main button[onclick="submitCode()"]').disabled = true;
       downloadButton.classList.remove('active');
       resetButton.classList.remove('active');
@@ -1015,15 +1032,17 @@
         for (let i = 0; i < totalSteps; i++) {
           status.textContent = loadingMessages[i];
           progressBar.style.width = `${((i + 1) / totalSteps) * 100}%`;
-          await delay(2000); // 2 seconds per message
+          await delay(2500); // Increased to 2.5 seconds for smoother sequence
         }
       }
 
       // Webhook request
       const webhookUrl = 'https://alastor-n8n.onrender.com/webhook-test/diesel-lynks-cat-ecm';
       const payload = {
-        engineType: engineType,
-        engineModel: engineModel
+        engine_type: engineType,
+        engine_model: engineModel,
+        mod: mod,
+        hp_increase_only: hpIncreaseOnly
       };
 
       try {
@@ -1053,9 +1072,7 @@
             status.textContent = 'Error: Invalid file type received from server';
             progressBar.style.width = '0%';
             resetButton.classList.add('active');
-            document.getElementById('engineType').disabled = false;
-            document.getElementById('engineModel').disabled = false;
-            document.querySelector('main button[onclick="submitCode()"]').disabled = false;
+            enableInputs();
             return;
           }
 
@@ -1069,39 +1086,40 @@
             const contentDisposition = response.headers.get('Content-Disposition');
             downloadFilename = contentDisposition && contentDisposition.includes('filename=')
               ? contentDisposition.split('filename=')[1].replace(/"/g, '')
-              : `cat_${engineType}_${engineModel}.zip`;
+              : `cat_${engineType}_${engineModel}_mod_${mod}_hp_${hpIncreaseOnly}.zip`;
 
             downloadUrl = window.URL.createObjectURL(blob);
-            status.textContent = 'Your calibration file is ready! Click the Download button.';
+            status.textContent = 'Calibration file ready! Click Download to retrieve.';
             downloadButton.classList.add('active');
             resetButton.classList.add('active');
           } else {
             status.textContent = 'Error: Empty or invalid file received from server';
             progressBar.style.width = '0%';
             resetButton.classList.add('active');
-            document.getElementById('engineType').disabled = false;
-            document.getElementById('engineModel').disabled = false;
-            document.querySelector('main button[onclick="submitCode()"]').disabled = false;
+            enableInputs();
           }
         } else {
           const errorText = await response.text();
           status.textContent = `Error: Failed to retrieve file (Status: ${response.status}, ${errorText})`;
           progressBar.style.width = '0%';
           resetButton.classList.add('active');
-          document.getElementById('engineType').disabled = false;
-          document.getElementById('engineModel').disabled = false;
-          document.querySelector('main button[onclick="submitCode()"]').disabled = false;
+          enableInputs();
         }
       } catch (error) {
-        // Wait for sequence to complete if there's an error
         await runLoadingSequence();
         status.textContent = `Error: Network issue (${error.message})`;
         progressBar.style.width = '0%';
         resetButton.classList.add('active');
-        document.getElementById('engineType').disabled = false;
-        document.getElementById('engineModel').disabled = false;
-        document.querySelector('main button[onclick="submitCode()"]').disabled = false;
+        enableInputs();
       }
+    }
+
+    function enableInputs() {
+      document.getElementById('engineType').disabled = false;
+      document.getElementById('engineModel').disabled = false;
+      document.getElementById('mod').disabled = false;
+      document.getElementById('hpIncreaseOnly').disabled = false;
+      document.querySelector('main button[onclick="submitCode()"]').disabled = false;
     }
 
     function downloadFile() {
@@ -1114,7 +1132,7 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        document.getElementById('status').textContent = `File downloaded successfully: ${downloadFilename}. Need another file? Click the Reset button.`;
+        document.getElementById('status').textContent = `File downloaded: ${downloadFilename}. Click Reset to start over.`;
         document.getElementById('progressBar').style.width = '0%';
       } else {
         document.getElementById('status').textContent = 'Error: No valid file available for download';
@@ -1127,13 +1145,13 @@
       document.getElementById('engineModel').value = '';
       document.getElementById('engineModel').innerHTML = '<option value="" disabled selected>Select Engine Model</option>';
       document.getElementById('engineModel').disabled = true;
-      document.getElementById('status').textContent = 'Awaiting Engine Type and Model Selection...';
+      document.getElementById('mod').value = '';
+      document.getElementById('hpIncreaseOnly').value = '';
+      document.getElementById('status').textContent = 'Awaiting Engine Type, Model, and Tuning Options...';
       document.getElementById('progressBar').style.width = '0%';
       document.getElementById('downloadButton').classList.remove('active');
       document.getElementById('resetButton').classList.remove('active');
-      document.getElementById('engineType').disabled = false;
-      document.getElementById('engineModel').disabled = false;
-      document.querySelector('main button[onclick="submitCode()"]').disabled = false;
+      enableInputs();
       if (downloadUrl) {
         window.URL.revokeObjectURL(downloadUrl);
         downloadUrl = null;
